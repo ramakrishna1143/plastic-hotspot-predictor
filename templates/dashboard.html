@@ -1,0 +1,324 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Plastic Hotspot Analytics Dashboard</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .dashboard {
+            max-width: 1200px;
+            margin: 35px auto;
+            padding: 20px;
+        }
+
+        .dashboard h1 {
+            color: #105436;
+        }
+
+        .dashboard-subtitle {
+            color: #64748b;
+            margin-bottom: 28px;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 18px;
+            margin: 25px 0;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,.06);
+            border-top: 4px solid #176b45;
+        }
+
+        .summary-card h3 {
+            font-size: 15px;
+            color: #64748b;
+            margin-top: 0;
+        }
+
+        .summary-card .number {
+            font-size: 30px;
+            font-weight: bold;
+            color: #105436;
+        }
+
+        .summary-card.high {
+            border-top-color: #dc2626;
+        }
+
+        .summary-card.high .number {
+            color: #dc2626;
+        }
+
+        .summary-card.medium {
+            border-top-color: #eab308;
+        }
+
+        .summary-card.medium .number {
+            color: #a16207;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 22px;
+            margin-top: 25px;
+        }
+
+        .dashboard-panel {
+            min-width: 0;
+            padding: 22px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,.06);
+        }
+
+        .dashboard-panel h2 {
+            color: #105436;
+            font-size: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            max-width: 100%;
+        }
+
+        .alert-item {
+            padding: 14px;
+            margin: 12px 0;
+            background: #fff5f5;
+            border-left: 4px solid #dc2626;
+            border-radius: 7px;
+            overflow-wrap: anywhere;
+        }
+
+        .alert-item p {
+            margin: 7px 0;
+        }
+
+        .dashboard-links {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 25px 0;
+        }
+
+        .dashboard-links a {
+            display: inline-block;
+            padding: 11px 16px;
+            background: #105436;
+            color: white;
+            text-decoration: none;
+            border-radius: 7px;
+        }
+
+        .dashboard-links a:hover {
+            background: #176b45;
+        }
+
+        .empty-message {
+            color: #64748b;
+            padding: 18px 0;
+        }
+
+        @media (max-width: 850px) {
+            .summary-cards {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard {
+                padding: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="navbar">
+    <div class="logo">♻️ Plastic Hotspot Predictor</div>
+
+    <nav>
+        <a href="/">Home</a>
+        <a href="/history">History</a>
+        <a href="/map">Map</a>
+        <a href="/notifications">Notifications</a>
+    </nav>
+</header>
+
+<main class="dashboard">
+
+    <h1>Analytics Dashboard</h1>
+
+    <p class="dashboard-subtitle">
+        Overview of plastic waste risk predictions and saved alerts.
+    </p>
+
+    <!-- Summary Cards -->
+    <section class="summary-cards">
+
+        <div class="summary-card">
+            <h3>Total Predictions</h3>
+            <div class="number">{{ total_predictions }}</div>
+        </div>
+
+        <div class="summary-card">
+            <h3>Low Risk</h3>
+            <div class="number">{{ low_risk }}</div>
+        </div>
+
+        <div class="summary-card medium">
+            <h3>Medium Risk</h3>
+            <div class="number">{{ medium_risk }}</div>
+        </div>
+
+        <div class="summary-card high">
+            <h3>High Risk</h3>
+            <div class="number">{{ high_risk }}</div>
+        </div>
+
+    </section>
+
+    <!-- Charts and Alerts -->
+    <section class="dashboard-grid">
+
+        <div class="dashboard-panel">
+            <h2>Risk Distribution</h2>
+
+            <div class="chart-container">
+                <canvas id="riskChart"></canvas>
+            </div>
+        </div>
+
+        <div class="dashboard-panel">
+            <h2>Model Confidence</h2>
+
+            <p>
+                Average confidence across saved predictions:
+                <strong>{{ average_confidence }}%</strong>
+            </p>
+
+            <p class="empty-message">
+                Confidence is the model's estimated probability,
+                not a guarantee of prediction correctness.
+            </p>
+
+            <hr>
+
+            <h2>Recent High-Risk Alerts</h2>
+
+            {% if recent_notifications %}
+
+                {% for item in recent_notifications %}
+
+                <div class="alert-item">
+                    <strong>⚠️ {{ item[4] }}</strong>
+
+                    <p>{{ item[1] }}</p>
+
+                    <p>
+                        Confidence: {{ item[5] }}%
+                    </p>
+
+                    <p>
+                        Location: {{ item[2] }}, {{ item[3] }}
+                    </p>
+
+                    <p>
+                        Date: {{ item[6] }}
+                    </p>
+
+                    <a href="/notifications">
+                        View notifications
+                    </a>
+                </div>
+
+                {% endfor %}
+
+            {% else %}
+
+                <p class="empty-message">
+                    No high-risk notifications have been saved yet.
+                </p>
+
+            {% endif %}
+        </div>
+
+    </section>
+
+    <!-- Navigation Links -->
+    <div class="dashboard-links">
+        <a href="/">New Prediction</a>
+        <a href="/history">View History</a>
+        <a href="/map">View Hotspot Map</a>
+        <a href="/notifications">All Notifications</a>
+    </div>
+
+</main>
+
+<footer>
+    <p>© 2026 Plastic Hotspot Predictor</p>
+    <p>AI-Based Predictive Waste Management System</p>
+</footer>
+
+<script>
+    const lowRisk = {{ low_risk | tojson }};
+    const mediumRisk = {{ medium_risk | tojson }};
+    const highRisk = {{ high_risk | tojson }};
+
+    if (typeof Chart !== "undefined") {
+        new Chart(document.getElementById("riskChart"), {
+            type: "doughnut",
+
+            data: {
+                labels: ["Low Risk", "Medium Risk", "High Risk"],
+
+                datasets: [{
+                    data: [lowRisk, mediumRisk, highRisk],
+                    backgroundColor: ["#16a34a", "#eab308", "#dc2626"],
+                    borderWidth: 2
+                }]
+            },
+
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    }
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,385 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plastic Hotspot Risk Map</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f6fa;
+            color: #1f2937;
+        }
+
+        nav {
+            background: #123b5d;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        nav h2 {
+            color: white;
+            margin: 0;
+            font-size: 21px;
+        }
+
+        nav div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 25px auto;
+            padding: 0 18px;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 24px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+            border-top: 5px solid #94a3b8;
+        }
+
+        .card.low {
+            border-top-color: #16a34a;
+        }
+
+        .card.medium {
+            border-top-color: #eab308;
+        }
+
+        .card.high {
+            border-top-color: #dc2626;
+        }
+
+        .card h3 {
+            margin: 0 0 12px;
+            font-size: 17px;
+        }
+
+        .count {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .low .count {
+            color: #15803d;
+        }
+
+        .medium .count {
+            color: #a16207;
+        }
+
+        .high .count {
+            color: #dc2626;
+        }
+
+        .map-panel {
+            background: white;
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+        }
+
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 8px;
+            z-index: 1;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 16px 0 4px;
+        }
+
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .green {
+            background: #16a34a;
+        }
+
+        .yellow {
+            background: #eab308;
+        }
+
+        .red {
+            background: #dc2626;
+        }
+
+        #map-status {
+            color: #64748b;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .empty-message {
+            background: #eff6ff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 14px;
+        }
+
+        @media (max-width: 650px) {
+            .summary {
+                grid-template-columns: 1fr;
+            }
+
+            nav {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            #map {
+                height: 380px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<nav>
+    <h2>Plastic Hotspot Predictor</h2>
+
+    <div>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/history">History</a>
+        <a href="/map">Map</a>
+        <a href="/notifications">Notifications</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <h1>Plastic Hotspot Risk Map</h1>
+
+    <p class="subtitle">
+        View predicted plastic-waste risk locations on the map.
+    </p>
+
+    <section class="summary">
+
+        <div class="card low">
+            <h3>Low Risk</h3>
+            <div class="count" id="low-count">0</div>
+            <p>Low-risk predictions</p>
+        </div>
+
+        <div class="card medium">
+            <h3>Medium Risk</h3>
+            <div class="count" id="medium-count">0</div>
+            <p>Medium-risk predictions</p>
+        </div>
+
+        <div class="card high">
+            <h3>High Risk</h3>
+            <div class="count" id="high-count">0</div>
+            <p>High-risk predictions</p>
+        </div>
+
+    </section>
+
+    <section class="map-panel">
+
+        <h3>Prediction Locations</h3>
+
+        <div id="no-data" class="empty-message" hidden>
+            No valid prediction locations are available yet.
+            Submit a prediction from the Home page to add one.
+        </div>
+
+        <div id="map"></div>
+
+        <div class="legend">
+            <span><i class="dot green"></i> Low Risk</span>
+            <span><i class="dot yellow"></i> Medium Risk</span>
+            <span><i class="dot red"></i> High Risk</span>
+        </div>
+
+        <p id="map-status">Loading map...</p>
+
+    </section>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // Data is converted to ordinary lists in app.py before rendering.
+    const locations = {{ locations | tojson }};
+
+    const map = L.map("map").setView([16.5062, 80.6480], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19
+    }).addTo(map);
+
+    const riskCounts = {
+        "LOW RISK": 0,
+        "MEDIUM RISK": 0,
+        "HIGH RISK": 0
+    };
+
+    const riskColors = {
+        "LOW RISK": "#16a34a",
+        "MEDIUM RISK": "#eab308",
+        "HIGH RISK": "#dc2626"
+    };
+
+    const markers = [];
+
+    locations.forEach(function (location) {
+        const latitude = Number(location[0]);
+        const longitude = Number(location[1]);
+        const risk = String(location[2] || "").trim().toUpperCase();
+        const confidence = Number(location[3]);
+
+        if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            latitude < -90 ||
+            latitude > 90 ||
+            longitude < -180 ||
+            longitude > 180
+        ) {
+            return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(riskCounts, risk)) {
+            riskCounts[risk]++;
+        }
+
+        const color = riskColors[risk] || "#64748b";
+
+        const marker = L.circleMarker([latitude, longitude], {
+            radius: 9,
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.85,
+            weight: 2
+        }).addTo(map);
+
+        // Build popup content safely.
+        const popup = document.createElement("div");
+
+        const heading = document.createElement("strong");
+        heading.textContent = risk || "UNKNOWN RISK";
+        popup.appendChild(heading);
+
+        const details = document.createElement("p");
+        details.textContent =
+            "Latitude: " + latitude +
+            "\nLongitude: " + longitude;
+
+        details.style.whiteSpace = "pre-line";
+        popup.appendChild(details);
+
+        const confidenceText = document.createElement("p");
+        confidenceText.textContent =
+            "Confidence: " +
+            (Number.isFinite(confidence)
+                ? (confidence * 100).toFixed(2) + "%"
+                : "Not available");
+
+        popup.appendChild(confidenceText);
+
+        marker.bindPopup(popup);
+        markers.push(marker);
+    });
+
+    document.getElementById("low-count").textContent =
+        riskCounts["LOW RISK"];
+
+    document.getElementById("medium-count").textContent =
+        riskCounts["MEDIUM RISK"];
+
+    document.getElementById("high-count").textContent =
+        riskCounts["HIGH RISK"];
+
+    const status = document.getElementById("map-status");
+
+    if (markers.length > 0) {
+        const markerGroup = L.featureGroup(markers);
+        map.fitBounds(markerGroup.getBounds(), {
+            padding: [30, 30],
+            maxZoom: 15
+        });
+
+        status.textContent =
+            "Showing " + markers.length +
+            " prediction location(s). Click a marker for details.";
+    } else {
+        document.getElementById("no-data").hidden = false;
+        status.textContent =
+            "No valid locations to display. Submit a prediction with valid coordinates.";
+    }
+
+    // Correct map sizing if the page finishes rendering later.
+    setTimeout(function () {
+        map.invalidateSize();
+    }, 200);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Prediction History</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+
+    <header class="navbar">
+
+        <div class="logo">
+            ♻️ Plastic Hotspot Predictor
+        </div>
+
+        <nav>
+            <a href="/">Home</a>
+            <a href="/history">History</a>
+            <a href="/notifications">Notifications</a>
+            <a href="/dashboard">Dashboard</a>
+        </nav>
+
+    </header>
+
+
+    <!-- HISTORY -->
+
+    <section class="history-section">
+
+        <h1>Prediction History</h1>
+
+        <p>
+            Previous Plastic Hotspot Predictions
+        </p>
+
+
+        {% if predictions %}
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>ID</th>
+                        <th>People</th>
+                        <th>Shops</th>
+                        <th>Bins</th>
+                        <th>Waste Level</th>
+                        <th>Collection</th>
+                        <th>Risk</th>
+                        <th>Confidence</th>
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for prediction in predictions %}
+
+                    <tr>
+
+                        <td>{{ prediction[0] }}</td>
+
+                        <td>{{ prediction[1] }}</td>
+
+                        <td>{{ prediction[2] }}</td>
+
+                        <td>{{ prediction[3] }}</td>
+
+                        <td>
+                            {% if prediction[4] == 1 %}
+                                Low
+                            {% elif prediction[4] == 2 %}
+                                Medium
+                            {% else %}
+                                High
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if prediction[5] == 1 %}
+                                Daily
+                            {% elif prediction[5] == 2 %}
+                                Every 2-3 Days
+                            {% else %}
+                                Weekly
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <strong>{{ prediction[6] }}</strong>
+                        </td>
+
+                        <td>
+                            {{ prediction[7] }}%
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="no-history">
+
+            <h2>No Predictions Yet</h2>
+
+            <p>
+                Make your first plastic hotspot prediction
+                to see it here.
+            </p>
+
+            <a href="/" class="history-button">
+                Make Prediction
+            </a>
+
+        </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- FOOTER -->
+
+    <footer>
+
+        <p>© 2026 Plastic Hotspot Predictor</p>
+
+        <p>AI-Based Predictive Waste Management System</p>
+
+    </footer>
+
+</body>
+
+</html>

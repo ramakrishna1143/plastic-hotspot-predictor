@@ -1,0 +1,407 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Plastic Hotspot Predictor</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <style>
+        .location-section {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 12px;
+            background: #f4faf5;
+        }
+
+        #location-map {
+            width: 100%;
+            height: 400px;
+            min-height: 300px;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        .coordinate-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .location-status {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 6px;
+            background: #e7f5e9;
+            color: #175b35;
+        }
+
+        .coordinate-grid input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+        }
+
+        .location-button {
+            margin: 5px 0 10px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            background: #176b45;
+            color: white;
+            cursor: pointer;
+        }
+
+        .location-button:hover {
+            background: #105436;
+        }
+
+        @media (max-width: 600px) {
+            #location-map {
+                height: 320px;
+            }
+
+            .coordinate-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <header class="navbar">
+
+        <div class="logo">
+            ♻️ Plastic Hotspot Predictor
+        </div>
+
+        <nav>
+            <a href="/">Home</a>
+            <a href="/history">History</a>
+            <a href="/map">Map</a>
+            <a href="/notifications">Notifications</a>
+            <a href="/dashboard">Dashboard</a>
+        </nav>
+
+    </header>
+
+    <!-- Main Prediction Section -->
+    <main class="prediction-form">
+
+        <h1>Plastic Hotspot Predictor</h1>
+
+        <p>
+            Predict plastic waste risk using environmental
+            and waste-management information.
+        </p>
+
+        <form action="/predict"
+              method="POST"
+              id="prediction-form">
+
+            <h2>Enter Area Information</h2>
+
+            <label for="people">Number of People</label>
+            <input
+                type="number"
+                id="people"
+                name="people"
+                min="0"
+                step="1"
+                placeholder="Enter number of people"
+                required
+            >
+
+            <label for="shops">Number of Shops</label>
+            <input
+                type="number"
+                id="shops"
+                name="shops"
+                min="0"
+                step="1"
+                placeholder="Enter number of shops"
+                required
+            >
+
+            <label for="bins">Number of Dustbins</label>
+            <input
+                type="number"
+                id="bins"
+                name="bins"
+                min="0"
+                step="1"
+                placeholder="Enter number of dustbins"
+                required
+            >
+
+            <label for="waste">Waste Level</label>
+            <select id="waste" name="waste" required>
+                <option value="">Select waste level</option>
+                <option value="1">Low</option>
+                <option value="2">Medium</option>
+                <option value="3">High</option>
+            </select>
+
+            <label for="collection">
+                Waste Collection Frequency
+            </label>
+
+            <select id="collection"
+                    name="collection"
+                    required>
+                <option value="">Select collection frequency</option>
+                <option value="1">Daily</option>
+                <option value="2">Every 2–3 Days</option>
+                <option value="3">Weekly</option>
+            </select>
+
+            <!-- Interactive Location Picker -->
+            <section class="location-section">
+
+                <h2>📍 Select Hotspot Location</h2>
+
+                <p>
+                    Click anywhere on the map to select the
+                    location where you want to predict plastic
+                    waste risk.
+                </p>
+
+                <div id="location-map"></div>
+
+                <button type="button"
+                        id="my-location"
+                        class="location-button">
+                    Use My Current Location
+                </button>
+
+                <div id="location-status"
+                     class="location-status"
+                     role="status"
+                     aria-live="polite">
+                    Click on the map to select a location.
+                </div>
+
+                <div class="coordinate-grid">
+
+                    <div>
+                        <label for="latitude">Latitude</label>
+                        <input
+                            type="number"
+                            id="latitude"
+                            name="latitude"
+                            step="any"
+                            min="-90"
+                            max="90"
+                            placeholder="Select a map location"
+                            readonly
+                            required
+                        >
+                    </div>
+
+                    <div>
+                        <label for="longitude">Longitude</label>
+                        <input
+                            type="number"
+                            id="longitude"
+                            name="longitude"
+                            step="any"
+                            min="-180"
+                            max="180"
+                            placeholder="Select a map location"
+                            readonly
+                            required
+                        >
+                    </div>
+
+                </div>
+
+            </section>
+
+            <button type="submit"
+                    class="submit-button">
+                Predict Plastic Waste Risk
+            </button>
+
+        </form>
+
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2026 Plastic Hotspot Predictor</p>
+        <p>AI-Based Predictive Waste Management System</p>
+    </footer>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            const mapElement =
+                document.getElementById("location-map");
+
+            const latitudeInput =
+                document.getElementById("latitude");
+
+            const longitudeInput =
+                document.getElementById("longitude");
+
+            const statusElement =
+                document.getElementById("location-status");
+
+            const form =
+                document.getElementById("prediction-form");
+
+            if (typeof L === "undefined") {
+                statusElement.textContent =
+                    "Map library failed to load. Check your internet connection.";
+                return;
+            }
+
+            // Initial map view: Vijayawada
+            const map = L.map("location-map", {
+                scrollWheelZoom: true
+            }).setView([16.5062, 80.6480], 12);
+
+            // Map tiles
+            L.tileLayer(
+                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+                    attribution:
+                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 19
+                }
+            ).addTo(map);
+
+            let selectedMarker = null;
+
+            // Update coordinates and marker
+            function selectLocation(lat, lon) {
+
+                latitudeInput.value = lat.toFixed(6);
+                longitudeInput.value = lon.toFixed(6);
+
+                const position = [lat, lon];
+
+                if (selectedMarker === null) {
+                    selectedMarker = L.marker(position, {
+                        draggable: true
+                    }).addTo(map);
+
+                    // Update coordinates if marker is dragged
+                    selectedMarker.on("dragend", function () {
+                        const point = selectedMarker.getLatLng();
+                        selectLocation(point.lat, point.lng);
+                    });
+
+                } else {
+                    selectedMarker.setLatLng(position);
+                }
+
+                selectedMarker.bindPopup(
+                    "<b>Selected Hotspot</b><br>" +
+                    "Latitude: " + lat.toFixed(6) +
+                    "<br>Longitude: " + lon.toFixed(6)
+                ).openPopup();
+
+                statusElement.textContent =
+                    "Location selected successfully. You can drag the marker to adjust it.";
+
+                statusElement.style.background = "#e7f5e9";
+                statusElement.style.color = "#175b35";
+            }
+
+            // Select location by clicking the map
+            map.on("click", function (event) {
+                selectLocation(
+                    event.latlng.lat,
+                    event.latlng.lng
+                );
+            });
+
+            // Current location, only with user permission
+            document.getElementById("my-location")
+                .addEventListener("click", function () {
+
+                    if (!navigator.geolocation) {
+                        statusElement.textContent =
+                            "Geolocation is not supported by this browser.";
+                        return;
+                    }
+
+                    statusElement.textContent =
+                        "Requesting location permission...";
+
+                    navigator.geolocation.getCurrentPosition(
+                        function (position) {
+
+                            const lat = position.coords.latitude;
+                            const lon = position.coords.longitude;
+
+                            map.setView([lat, lon], 16);
+                            selectLocation(lat, lon);
+
+                        },
+                        function (error) {
+
+                            statusElement.textContent =
+                                "Could not get your location. Allow location access or click the map manually.";
+
+                            console.error(
+                                "Location error:", error.message
+                            );
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                });
+
+            // Prevent submission without coordinates
+            form.addEventListener("submit", function (event) {
+
+                if (
+                    latitudeInput.value === "" ||
+                    longitudeInput.value === ""
+                ) {
+                    event.preventDefault();
+
+                    statusElement.textContent =
+                        "Please click the map to select a location before predicting.";
+
+                    statusElement.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+                }
+            });
+
+            // Fix map sizing after page rendering
+            setTimeout(function () {
+                map.invalidateSize();
+            }, 300);
+
+        });
+    </script>
+
+</body>
+</html>

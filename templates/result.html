@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Prediction Result</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .result-box {
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 12px;
+            text-align: center;
+            background: #f0fdf4;
+            border: 2px solid #16a34a;
+        }
+
+        .result-box h3 {
+            font-size: 26px;
+            margin-bottom: 15px;
+        }
+
+        .high-risk {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #991b1b;
+        }
+
+        .medium-risk {
+            background: #fffbeb;
+            border-color: #eab308;
+            color: #854d0e;
+        }
+
+        .low-risk {
+            background: #f0fdf4;
+            border-color: #16a34a;
+            color: #166534;
+        }
+
+        .risk-message {
+            padding: 18px;
+            margin: 20px 0;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .result-links {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 18px;
+            margin: 25px 0;
+        }
+
+        .result-links a {
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .confidence-note {
+            font-size: 13px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="result-container">
+
+        <h1>♻️ Plastic Hotspot Predictor</h1>
+
+        <h2>Prediction Result</h2>
+
+        {% if result == "HIGH RISK" %}
+
+            <div class="result-box high-risk">
+                <h3>🔴 {{ result }}</h3>
+
+                <p>
+                    Model Confidence:
+                    <strong>{{ confidence }}%</strong>
+                </p>
+            </div>
+
+            <div class="risk-message high-risk">
+                <h3>⚠️ High-Risk Plastic Waste Alert!</h3>
+
+                <p>
+                    The model predicts a high risk of plastic
+                    waste accumulation in this area.
+                </p>
+
+                <p>
+                    Recommended action: Inspect the area and
+                    consider increasing waste collection frequency.
+                </p>
+            </div>
+
+        {% elif result == "MEDIUM RISK" %}
+
+            <div class="result-box medium-risk">
+                <h3>🟡 {{ result }}</h3>
+
+                <p>
+                    Model Confidence:
+                    <strong>{{ confidence }}%</strong>
+                </p>
+            </div>
+
+            <div class="risk-message medium-risk">
+                <h3>⚠️ Medium-Risk Area</h3>
+
+                <p>
+                    Monitor plastic waste accumulation and
+                    review the collection schedule.
+                </p>
+            </div>
+
+        {% else %}
+
+            <div class="result-box low-risk">
+                <h3>🟢 {{ result }}</h3>
+
+                <p>
+                    Model Confidence:
+                    <strong>{{ confidence }}%</strong>
+                </p>
+            </div>
+
+            <div class="risk-message low-risk">
+                <h3>✅ Low-Risk Area</h3>
+
+                <p>
+                    Continue regular waste collection
+                    and monitoring.
+                </p>
+            </div>
+
+        {% endif %}
+
+        <p class="confidence-note">
+            Confidence represents the model's estimated
+            probability for its predicted class. It does not
+            guarantee that the prediction is correct.
+        </p>
+
+        <div class="result-links">
+            <a href="/">← Make Another Prediction</a>
+            <a href="/history">📋 View History</a>
+            <a href="/map">🗺️ View Hotspot Map</a>
+        </div>
+
+    </div>
+
+    {% if result == "HIGH RISK" %}
+    <script>
+        alert(
+            "HIGH RISK ALERT!\n\n" +
+            "The model predicts a high plastic waste risk. " +
+            "Please inspect the area."
+        );
+    </script>
+    {% endif %}
+
+</body>
+</html>
