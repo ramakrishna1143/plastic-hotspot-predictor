@@ -1,58 +1,201 @@
+
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction History | Plastic Hotspot Predictor</title>
 
-    <title>Prediction History</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='style.css') }}">
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f3f7f5;
+            color: #26332b;
+        }
 
+        nav {
+            background: #105335;
+            color: white;
+            padding: 22px 7%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .brand {
+            color: white;
+            text-decoration: none;
+            font-size: 27px;
+            font-weight: bold;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-links a:hover {
+            color: #a7f3d0;
+        }
+
+        .container {
+            width: 93%;
+            max-width: 1600px;
+            margin: 45px auto;
+        }
+
+        .heading {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .heading h1 {
+            color: #105335;
+            font-size: 42px;
+            margin-bottom: 20px;
+        }
+
+        .heading p {
+            color: #64748b;
+            font-size: 21px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            background: white;
+            border-radius: 13px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+        }
+
+        table {
+            width: 100%;
+            min-width: 950px;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #198754;
+            color: white;
+        }
+
+        th, td {
+            padding: 20px 15px;
+            text-align: center;
+            border-bottom: 1px solid #dedede;
+            font-size: 17px;
+            white-space: nowrap;
+        }
+
+        th {
+            font-size: 18px;
+        }
+
+        tbody tr:hover {
+            background: #f0fdf4;
+        }
+
+        .risk {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .low {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 35px;
+            color: #64748b;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            padding: 25px;
+        }
+
+        @media (max-width: 700px) {
+            nav {
+                padding: 18px 5%;
+            }
+
+            .brand {
+                font-size: 21px;
+            }
+
+            .nav-links {
+                gap: 15px;
+            }
+
+            .container {
+                margin-top: 25px;
+            }
+
+            .heading h1 {
+                font-size: 32px;
+            }
+
+            .heading p {
+                font-size: 17px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-    <!-- NAVBAR -->
-
-    <header class="navbar">
-
-        <div class="logo">
+    <nav>
+        <a class="brand" href="{{ url_for('home') }}">
             ♻️ Plastic Hotspot Predictor
+        </a>
+
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}">Home</a>
+            <a href="{{ url_for('history') }}">History</a>
+            <a href="{{ url_for('notifications') }}">Notifications</a>
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
         </div>
+    </nav>
 
-        <nav>
-            <a href="/">Home</a>
-            <a href="/history">History</a>
-            <a href="/notifications">Notifications</a>
-            <a href="/dashboard">Dashboard</a>
-        </nav>
+    <main class="container">
 
-    </header>
+        <section class="heading">
+            <h1>Prediction History</h1>
+            <p>Previous Plastic Hotspot Predictions</p>
+        </section>
 
-
-    <!-- HISTORY -->
-
-    <section class="history-section">
-
-        <h1>Prediction History</h1>
-
-        <p>
-            Previous Plastic Hotspot Predictions
-        </p>
-
-
-        {% if predictions %}
-
-        <div class="table-container">
-
+        <div class="table-wrapper">
             <table>
-
                 <thead>
-
                     <tr>
                         <th>ID</th>
                         <th>People</th>
@@ -63,94 +206,100 @@
                         <th>Risk</th>
                         <th>Confidence</th>
                     </tr>
-
                 </thead>
 
-
                 <tbody>
+                    {% if predictions %}
+                        {% for prediction in predictions %}
+                            <tr>
+                                <td>{{ prediction.get('id', '-') }}</td>
 
-                    {% for prediction in predictions %}
+                                <td>
+                                    {{ prediction.get('people', '-') }}
+                                </td>
 
-                    <tr>
+                                <td>
+                                    {{ prediction.get('shops', '-') }}
+                                </td>
 
-                        <td>{{ prediction[0] }}</td>
+                                <td>
+                                    {{ prediction.get('bins', '-') }}
+                                </td>
 
-                        <td>{{ prediction[1] }}</td>
+                                <td>
+                                    {% set waste = prediction.get('waste_level') %}
+                                    {% if waste == 1 %}
+                                        Low
+                                    {% elif waste == 2 %}
+                                        Medium
+                                    {% elif waste == 3 %}
+                                        High
+                                    {% else %}
+                                        {{ waste if waste is not none else '-' }}
+                                    {% endif %}
+                                </td>
 
-                        <td>{{ prediction[2] }}</td>
+                                <td>
+                                    {% set frequency = prediction.get('collection_frequency') %}
+                                    {% if frequency == 1 %}
+                                        Daily
+                                    {% elif frequency == 2 %}
+                                        Twice Weekly
+                                    {% elif frequency == 3 %}
+                                        Weekly
+                                    {% else %}
+                                        {{ frequency if frequency is not none else '-' }}
+                                    {% endif %}
+                                </td>
 
-                        <td>{{ prediction[3] }}</td>
+                                <td>
+                                    {% set risk_value = prediction.get('risk', 'Unknown') %}
+                                    {% set risk_lower = risk_value | lower %}
 
-                        <td>
-                            {% if prediction[4] == 1 %}
-                                Low
-                            {% elif prediction[4] == 2 %}
-                                Medium
-                            {% else %}
-                                High
-                            {% endif %}
-                        </td>
+                                    {% if 'high' in risk_lower %}
+                                        <span class="risk high">
+                                            {{ risk_value }}
+                                        </span>
+                                    {% elif 'medium' in risk_lower %}
+                                        <span class="risk medium">
+                                            {{ risk_value }}
+                                        </span>
+                                    {% elif 'low' in risk_lower %}
+                                        <span class="risk low">
+                                            {{ risk_value }}
+                                        </span>
+                                    {% else %}
+                                        {{ risk_value }}
+                                    {% endif %}
+                                </td>
 
-                        <td>
-                            {% if prediction[5] == 1 %}
-                                Daily
-                            {% elif prediction[5] == 2 %}
-                                Every 2-3 Days
-                            {% else %}
-                                Weekly
-                            {% endif %}
-                        </td>
-
-                        <td>
-                            <strong>{{ prediction[6] }}</strong>
-                        </td>
-
-                        <td>
-                            {{ prediction[7] }}%
-                        </td>
-
-                    </tr>
-
-                    {% endfor %}
-
+                                <td>
+                                    {% set confidence = prediction.get('confidence') %}
+                                    {% if confidence is not none %}
+                                        {{ "%.1f"|format(confidence * 100) }}%
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="empty">
+                                No predictions found. Make your first prediction
+                                from the Home page.
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
-
             </table>
-
         </div>
 
-        {% else %}
-
-        <div class="no-history">
-
-            <h2>No Predictions Yet</h2>
-
-            <p>
-                Make your first plastic hotspot prediction
-                to see it here.
-            </p>
-
-            <a href="/" class="history-button">
-                Make Prediction
-            </a>
-
-        </div>
-
-        {% endif %}
-
-    </section>
-
-
-    <!-- FOOTER -->
+    </main>
 
     <footer>
-
-        <p>© 2026 Plastic Hotspot Predictor</p>
-
-        <p>AI-Based Predictive Waste Management System</p>
-
+        Plastic Hotspot Predictor | Prediction History
     </footer>
 
 </body>
-
 </html>

@@ -1,83 +1,82 @@
 
 from flask import Flask, render_template, request, redirect, url_for
+from pathlib import Path
 import sqlite3
 import joblib
-from datetime import datetime
+import logging
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 
 # --------------------------------------------------
-# LOAD MACHINE LEARNING MODEL
+# FILE PATHS AND MODEL
 # --------------------------------------------------
 
-model = joblib.load("plastic_hotspot_model.pkl")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "plastic_hotspot_model.pkl"
+DATABASE = BASE_DIR / "database.db"
 
-DATABASE = "database.db"
-
+try:
+    model = joblib.load(MODEL_PATH)
+    app.logger.info("Plastic hotspot model loaded successfully.")
+except Exception:
+    app.logger.exception("Could not load the ML model.")
+    raise
 
 # --------------------------------------------------
 # DATABASE CONNECTION
 # --------------------------------------------------
 
 def get_connection():
-    connection = sqlite3.connect(DATABASE)
+    connection = sqlite3.connect(str(DATABASE))
     connection.row_factory = sqlite3.Row
     return connection
 
 
-# --------------------------------------------------
-# CREATE DATABASE TABLES
-# --------------------------------------------------
-
 def create_database():
     connection = get_connection()
-    cursor = connection.cursor()
+    try:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                people REAL,
+                shops REAL,
+                bins REAL,
+                waste_level INTEGER,
+                collection_frequency INTEGER,
+                latitude REAL,
+                longitude REAL,
+                risk TEXT,
+                confidence REAL
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            people REAL,
-            shops REAL,
-            bins REAL,
-            waste_level INTEGER,
-            collection_frequency INTEGER,
-            latitude REAL,
-            longitude REAL,
-            risk TEXT,
-            confidence REAL
-        )
-    """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message TEXT,
+                latitude REAL,
+                longitude REAL,
+                risk TEXT,
+                confidence REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_read INTEGER DEFAULT 0
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message TEXT,
-            latitude REAL,
-            longitude REAL,
-            risk TEXT,
-            confidence REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_read INTEGER DEFAULT 0
-        )
-    """)
-
-    connection.commit()
-    connection.close()
+        connection.commit()
+    finally:
+        connection.close()
 
 
 create_database()
 
-
 # --------------------------------------------------
-# RISK LABEL HELPER
+# RISK LABEL
+# Verify these class labels match train_model.py.
 # --------------------------------------------------
 
 def get_risk_label(prediction):
-    """
-    Convert model output into a readable risk label.
-
-    Confirm these class labels match your model's training.
-    """
     label_map = {
         0: "LOW RISK",
         1: "MEDIUM RISK",
@@ -85,8 +84,8 @@ def get_risk_label(prediction):
     }
 
     try:
-        numeric_label = int(prediction)
-        return label_map.get(numeric_label, str(prediction).upper())
+        label = int(prediction)
+        return label_map.get(label, str(prediction).upper())
     except (ValueError, TypeError):
         return str(prediction).strip().upper()
 
@@ -101,11 +100,35 @@ def home():
 
 
 # --------------------------------------------------
-# PREDICTION ROUTE
+# PREDICTION
 # --------------------------------------------------
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    # Read and validate all required form fields.
+    required_fields = [
+        "people",
+        "shops",
+        "bins",
+        "waste_level",
+        "collection_frequency",
+        "latitude",
+        "longitude"
+    ]
+
+    missing_fields = [
+        field for field in required_fields
+        if not request.form.get(field, "").strip()
+    ]
+
+    if missing_fields:
+        return (
+            "Missing required fields: "
+            + ", ".join(missing_fields)
+            + ". Please return to the home page and complete the form.",
+            400
+        )
+
     try:
         people = float(request.form["people"])
         shops = float(request.form["shops"])
@@ -114,100 +137,88 @@ def predict():
         collection_frequency = int(
             request.form["collection_frequency"]
         )
-
         latitude = float(request.form["latitude"])
         longitude = float(request.form["longitude"])
 
-        # Validate numeric inputs
-        if people < 0 or shops < 0 or bins < 0:
-            return "People, shops, and bins cannot be negative.", 400
+    except (ValueError, TypeError):
+        return (
+            "Invalid input. Enter valid numbers in all fields "
+            "and select valid options.",
+            400
+        )
 
-        if waste_level not in (1, 2, 3):
-            return "Invalid waste level.", 400
+    # Validate input ranges.
+    if not all(map(
+        lambda value: value >= 0 and value < float("inf"),
+        [people, shops, bins]
+    )):
+        return "People, shops, and bins must be non-negative finite numbers.", 400
 
-        if collection_frequency not in (1, 2, 3):
-            return "Invalid collection frequency.", 400
+    if waste_level not in (1, 2, 3):
+        return "Invalid waste level. Select an available option.", 400
 
-        if not -90 <= latitude <= 90:
-            return "Invalid latitude.", 400
+    if collection_frequency not in (1, 2, 3):
+        return "Invalid collection frequency. Select an available option.", 400
 
-        if not -180 <= longitude <= 180:
-            return "Invalid longitude.", 400
+    if not (-90 <= latitude <= 90):
+        return "Latitude must be between -90 and 90.", 400
 
-        # IMPORTANT:
-        # Input order must match the order used when training the model.
-        features = [[
-            people,
-            shops,
-            bins,
-            waste_level,
-            collection_frequency
-        ]]
+    if not (-180 <= longitude <= 180):
+        return "Longitude must be between -180 and 180.", 400
 
+    # Feature order must match the model's training order.
+    features = [[
+        people,
+        shops,
+        bins,
+        waste_level,
+        collection_frequency
+    ]]
+
+    try:
         prediction = model.predict(features)[0]
         risk = get_risk_label(prediction)
 
-        # Get prediction confidence when supported
         confidence = 0.0
-
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(features)[0]
             confidence = float(max(probabilities))
 
         connection = get_connection()
-        cursor = connection.cursor()
-
-        cursor.execute("""
-            INSERT INTO predictions (
-                people,
-                shops,
-                bins,
-                waste_level,
-                collection_frequency,
-                latitude,
-                longitude,
-                risk,
-                confidence
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            people,
-            shops,
-            bins,
-            waste_level,
-            collection_frequency,
-            latitude,
-            longitude,
-            risk,
-            confidence
-        ))
-
-        # Create a notification for high-risk predictions
-        if risk == "HIGH RISK":
-            message = (
-                f"High plastic-waste risk detected at "
-                f"latitude {latitude}, longitude {longitude}."
-            )
+        try:
+            cursor = connection.cursor()
 
             cursor.execute("""
-                INSERT INTO notifications (
-                    message,
-                    latitude,
-                    longitude,
-                    risk,
-                    confidence
+                INSERT INTO predictions (
+                    people, shops, bins, waste_level,
+                    collection_frequency, latitude, longitude,
+                    risk, confidence
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                message,
-                latitude,
-                longitude,
-                risk,
-                confidence
+                people, shops, bins, waste_level,
+                collection_frequency, latitude, longitude,
+                risk, confidence
             ))
 
-        connection.commit()
-        connection.close()
+            if risk == "HIGH RISK":
+                message = (
+                    "High plastic-waste risk detected at "
+                    f"latitude {latitude}, longitude {longitude}."
+                )
+
+                cursor.execute("""
+                    INSERT INTO notifications (
+                        message, latitude, longitude, risk, confidence
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    message, latitude, longitude, risk, confidence
+                ))
+
+            connection.commit()
+        finally:
+            connection.close()
 
         return render_template(
             "result.html",
@@ -217,16 +228,13 @@ def predict():
             longitude=longitude
         )
 
-    except (ValueError, TypeError, KeyError):
+    except Exception:
+        app.logger.exception("Prediction failed.")
         return (
-            "Invalid or missing form values. "
-            "Please check all fields and try again.",
-            400
+            "The prediction could not be completed. "
+            "Please check the application logs.",
+            500
         )
-
-    except Exception as error:
-        app.logger.exception("Prediction failed")
-        return "Prediction failed. Check the VS Code terminal for details.", 500
 
 
 # --------------------------------------------------
@@ -236,7 +244,6 @@ def predict():
 @app.route("/history")
 def history():
     connection = get_connection()
-
     try:
         rows = connection.execute("""
             SELECT *
@@ -244,9 +251,7 @@ def history():
             ORDER BY id DESC
         """).fetchall()
 
-        # Convert rows to dictionaries for template compatibility
         predictions = [dict(row) for row in rows]
-
     finally:
         connection.close()
 
@@ -258,12 +263,12 @@ def history():
 
 # --------------------------------------------------
 # RISK MAP
+# Locations format: [latitude, longitude, risk, confidence]
 # --------------------------------------------------
 
 @app.route("/map")
 def map_view():
     connection = get_connection()
-
     try:
         rows = connection.execute("""
             SELECT latitude, longitude, risk, confidence
@@ -271,8 +276,6 @@ def map_view():
             ORDER BY id DESC
         """).fetchall()
 
-        # FIX: SQLite Row objects are not JSON serializable.
-        # Convert them into normal Python lists.
         locations = [
             [
                 row["latitude"],
@@ -282,7 +285,6 @@ def map_view():
             ]
             for row in rows
         ]
-
     finally:
         connection.close()
 
@@ -293,13 +295,12 @@ def map_view():
 
 
 # --------------------------------------------------
-# NOTIFICATIONS PAGE
+# NOTIFICATIONS
 # --------------------------------------------------
 
 @app.route("/notifications")
 def notifications():
     connection = get_connection()
-
     try:
         rows = connection.execute("""
             SELECT *
@@ -307,10 +308,7 @@ def notifications():
             ORDER BY id DESC
         """).fetchall()
 
-        notification_list = [
-            dict(row) for row in rows
-        ]
-
+        notification_list = [dict(row) for row in rows]
     finally:
         connection.close()
 
@@ -320,26 +318,19 @@ def notifications():
     )
 
 
-# --------------------------------------------------
-# MARK NOTIFICATION AS READ
-# --------------------------------------------------
-
 @app.route(
     "/notifications/read/<int:notification_id>",
     methods=["POST"]
 )
 def mark_notification_read(notification_id):
     connection = get_connection()
-
     try:
         connection.execute("""
             UPDATE notifications
             SET is_read = 1
             WHERE id = ?
         """, (notification_id,))
-
         connection.commit()
-
     finally:
         connection.close()
 
@@ -353,7 +344,6 @@ def mark_notification_read(notification_id):
 @app.route("/dashboard")
 def dashboard():
     connection = get_connection()
-
     try:
         total_predictions = connection.execute("""
             SELECT COUNT(*) AS total
@@ -373,9 +363,8 @@ def dashboard():
         }
 
         for row in risk_rows:
-            risk_name = row["risk"]
-            if risk_name in risk_counts:
-                risk_counts[risk_name] = row["total"]
+            if row["risk"] in risk_counts:
+                risk_counts[row["risk"]] = row["total"]
 
         average_confidence = connection.execute("""
             SELECT AVG(confidence) AS average
@@ -392,7 +381,6 @@ def dashboard():
         recent_notifications = [
             dict(row) for row in recent_rows
         ]
-
     finally:
         connection.close()
 
@@ -413,6 +401,7 @@ def dashboard():
 
 # --------------------------------------------------
 # RUN APPLICATION
+# Render runs this app using: gunicorn app:app
 # --------------------------------------------------
 
 if __name__ == "__main__":
